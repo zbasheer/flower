@@ -4,6 +4,8 @@ from sklearn import datasets
 from sklearn.neural_network import MLPClassifier
 import flwr as fl
 from flwr.common import Weights
+from typing import cast
+import pdb
 
 # mnist = fetch_openml('mnist_784', version=1, cache=True)
 X, y = datasets.load_digits(return_X_y=True)
@@ -33,20 +35,20 @@ model = MLPClassifierOverride(solver='adam', alpha=1e-4,learning_rate_init=0.1,
 
 class MnistClient(fl.client.KerasClient):
     def __init__(self, model, X_train, y_train, X_test, y_test):
-        #super().__init__(cid)
         self.model = model
         self.X_train, self.y_train = X_train, y_train
         self.X_test, self.y_test = X_test, y_test
 
     def get_weights(self) -> Weights: 
-        return model._init_coef
+        return cast(Weights, self.model._init_coef)
 
-    def fit(self, weights, config):
+    def fit(self, weights:Weights, config):
         self.model.fit(self.X_train, self.y_train)
-        weights = model.coefs_
+        weights = self.model.coefs_
+        pdb.set_trace()
         return weights, len(self.x_train), len(self.x_train)
 
-    def evaluate(self, weights, config):
+    def evaluate(self, weights:Weights, config):
         accuracy = self.model.score(self.X_test, self.y_test)
         loss = self.model.loss_
         return len(self.X_test), loss, accuracy
