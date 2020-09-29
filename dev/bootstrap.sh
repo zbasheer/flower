@@ -15,6 +15,7 @@ python -m poetry install \
   --extras "baseline" \
   --extras "examples-pytorch" \
   --extras "examples-tensorflow" \
+  --extras "examples-scikit-learn" \
   --extras "http-logger" \
   --extras "ops"
 
