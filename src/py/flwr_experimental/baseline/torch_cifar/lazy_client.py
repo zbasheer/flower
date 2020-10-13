@@ -18,6 +18,7 @@
 import argparse
 import timeit
 from logging import ERROR, INFO
+from typing import Optional
 
 import torch
 import torchvision
@@ -43,7 +44,7 @@ class CifarClient(fl.client.Client):
         self,
         cid: str,
         trainset: torch.utils.data.Dataset,
-        testset: torch.utils.data.Dataset,
+        testset: Optional[torch.utils.data.Dataset] = None,
     ) -> None:
         self.cid = cid
         self.trainset = trainset
@@ -51,7 +52,7 @@ class CifarClient(fl.client.Client):
 
     def get_parameters(self) -> ParametersRes:
         log(INFO, "Client %s: get_parameters", self.cid)
-        model = torchvision.models.resnet18().to(DEVICE)
+        model = cifar.load_model(DEVICE)
         weights: Weights = cifar.get_weights(model)
         del model
         parameters = fl.common.weights_to_parameters(weights)
@@ -62,11 +63,12 @@ class CifarClient(fl.client.Client):
         weights: Weights = fl.common.parameters_to_weights(ins.parameters)
         config = ins.config
 
-        model = torchvision.models.resnet18().to(DEVICE)
+        model = cifar.load_model(DEVICE)
 
         fit_begin = timeit.default_timer()
 
         # Get training config
+        epoch_global = int(config["epoch_global"])
         epochs = int(config["epochs"])
         batch_size = int(config["batch_size"])
 
@@ -77,7 +79,15 @@ class CifarClient(fl.client.Client):
         trainloader = torch.utils.data.DataLoader(
             self.trainset, batch_size=batch_size, shuffle=True
         )
-        cifar.train(model, trainloader, epochs=epochs, device=DEVICE)
+        cifar.train(
+            cid=self.cid,
+            model=model,
+            trainloader=trainloader,
+            epoch_global=epoch_global,
+            epochs=epochs,
+            device=DEVICE,
+            # batches_per_episode=5,
+        )
 
         # Return the refined weights and the number of examples used for training
         weights_prime: Weights = cifar.get_weights(model)
@@ -111,9 +121,7 @@ class CifarClient(fl.client.Client):
             num_examples=len(self.testset), loss=float(loss), accuracy=float(accuracy)
         )
         """
-        return EvaluateRes(
-            num_examples=0, loss=1.0, accuracy=0.5
-        )
+        return EvaluateRes(num_examples=1, loss=1.0, accuracy=0.5)
 
 
 def parse_args() -> argparse.Namespace:
@@ -168,27 +176,13 @@ def main() -> None:
     configure(identifier=f"client:{client_setting.cid}", host=args.log_host)
     log(INFO, "Starting client, settings: %s", client_setting)
 
-    # Load model
-    #model = torchvision.models.resnet18().to(DEVICE)
-
     # Load local data partition
-    transform = transforms.Compose(
-        [
-            transforms.ToTensor(),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-        ]
-    )
-
     trainset, _ = cifar.load_data(
         cid=int(client_setting.cid), root_dir=cifar.DATA_ROOT, load_testset=False
     )
 
     # Start client
-    client = CifarClient(
-        cid=client_setting.cid,
-        trainset=trainset,
-        testset=None
-    )
+    client = CifarClient(cid=client_setting.cid, trainset=trainset)
     fl.client.start_client(args.server_address, client)
 
 

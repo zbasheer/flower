@@ -22,8 +22,9 @@ https://pytorch.org/tutorials/beginner/blitz/cifar10_tutorial.html
 
 
 from collections import OrderedDict
-from typing import Tuple
+from logging import DEBUG
 from os import path
+from typing import Optional, Tuple
 
 import numpy as np
 import torch
@@ -32,18 +33,18 @@ import torchvision
 import torchvision.transforms as transforms
 
 import flwr as fl
+from flwr.common.logger import log
 from flwr_experimental.baseline.dataset.pytorch_cifar_partitioned import (
     CIFAR10PartitionedDataset,
 )
-# from flwr_experimental.baseline.model.mobilenetv2_cifar import MobileNetV2 # TODO: fixme
+
 
 DATA_ROOT = "~/.flower/data/cifar-10"
 
 
 def load_model(device) -> torch.nn.ModuleList:
     """Load model (ResNet-18)."""
-    # return MobileNetV2().to(device) # TODO: fixme
-    return torchvision.models.resnet18(num_classes=10).to(device)  # Or: mobilenet_v2
+    return torchvision.models.resnet18(num_classes=10).to(device)
 
 
 def get_weights(model: torch.nn.ModuleList) -> fl.common.Weights:
@@ -64,7 +65,7 @@ def set_weights(model: torch.nn.ModuleList, weights: fl.common.Weights) -> None:
 
 # pylint: disable=unused-argument
 def load_data(
-        cid: int, root_dir: str = DATA_ROOT, load_testset: bool = False
+    cid: int, root_dir: str = DATA_ROOT, load_testset: bool = False
 ) -> Tuple[torch.utils.data.Dataset, torch.utils.data.Dataset]:
     """Load CIFAR-10 (training and test set)."""
     root_dir = path.expanduser(root_dir)
@@ -74,50 +75,50 @@ def load_data(
             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
         ]
     )
-    
+
     # Load EC-10 partition
     trainset = CIFAR10PartitionedDataset(
         partition_id=cid, root_dir=root_dir, transform=transform
     )
-<<<<<<< HEAD
+
     testset = None
     if load_testset:
         testset = torchvision.datasets.CIFAR10(
-        root=DATA_ROOT, train=False, download=True, transform=transform
-=======
-
-    # Load entire CIFAR-10 training set
-    # trainset = torchvision.datasets.CIFAR10(
-    #     root=root_dir, train=True, download=True, transform=transform
-    # )
-
-    # Load entire CIFAR-10 test set
-    testset = torchvision.datasets.CIFAR10(
-        root=root_dir, train=False, download=True, transform=transform
->>>>>>> 036414bfc5d24fc7dc2a775f6004dfce1feb12de
-    )
+            root=root_dir, train=False, download=True, transform=transform
+        )
 
     return trainset, testset
 
 
 def train(
+    cid: str,
     model: torch.nn.ModuleList,
     trainloader: torch.utils.data.DataLoader,
+    epoch_global: int,
     epochs: int,
     device: torch.device,  # pylint: disable=no-member
+    batches_per_episode: Optional[int] = None,
 ) -> None:
     """Train the network."""
     # Define loss and optimizer
     criterion = nn.CrossEntropyLoss()
+    # optimizer = torch.optim.Adam(model.parameters())
     optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.95)
 
-    print(f"Training {epochs} epoch(s) w/ {len(trainloader)} batches each")
+    # Fast-forward scheduler to the right epoch
+    for _ in range(epoch_global):
+        scheduler.step()
+
+    log(DEBUG, f"Training {epochs} epoch(s) w/ {len(trainloader)} batches each")
     model.train()
     # Train the network
     for epoch in range(epochs):  # loop over the dataset multiple times
+        log(DEBUG, f"Training epoch: {epoch}/{epochs}")
+        scheduler.step()
         running_loss = 0.0
-        for i, data in enumerate(trainloader, 0):
-            images, labels = data[0].to(device), data[1].to(device)
+        for i, (data, target) in enumerate(trainloader, 0):
+            images, labels = data.to(device), target.to(device)
 
             # zero the parameter gradients
             optimizer.zero_grad()
@@ -130,9 +131,16 @@ def train(
 
             # print statistics
             running_loss += loss.item()
-            if i % 100 == 0:  # print every 100 mini-batches
-                print("[%d, %5d] loss: %.3f" % (epoch + 1, i + 1, running_loss / 2000))
+            if i % 2 == 0:  # log every other mini-batch
+                log(
+                    DEBUG,
+                    "cid %s [epoch %1d, batch %2d/%2d] loss: %.3f"
+                    % (cid, epoch + 1, i + 1, len(trainloader), running_loss / 2),
+                )
                 running_loss = 0.0
+
+            if batches_per_episode is not None and i >= batches_per_episode:
+                break
 
 
 def test(

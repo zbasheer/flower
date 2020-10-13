@@ -17,13 +17,12 @@
 
 from typing import List
 
-from flwr_experimental.baseline.common import configure_client_instances
+from flwr_experimental.baseline.config import configure_client_instances
 from flwr_experimental.baseline.setting import Baseline, ClientSetting, ServerSetting
-from flwr_experimental.ops.cluster import Instance
+from flwr_experimental.ops.instance import Instance
 
 ROUNDS = 2
-SAMPLE_FRACTION = 0.2
-LR_INITIAL = 0.01
+LR_INITIAL = 0.001
 
 
 def get_setting(name: str) -> Baseline:
@@ -66,6 +65,7 @@ def configure_uniform_clients(
         )
         clients.append(client)
     return clients
+
 
 client_instances_2, client_names_2 = configure_client_instances(
     num_clients=2, num_cpu=2, num_ram=8
@@ -122,9 +122,9 @@ SETTINGS = {
             instance_name="server",
             strategy="fedavg",
             rounds=ROUNDS,
-            min_num_clients=10,
-            sample_fraction=SAMPLE_FRACTION,
-            min_sample_size=2,
+            min_num_clients=8,
+            sample_fraction=0.1,
+            min_sample_size=1,
             training_round_timeout=None,
             lr_initial=LR_INITIAL,
             partial_updates=False,
@@ -145,9 +145,9 @@ SETTINGS = {
             instance_name="server",
             strategy="fedavg",
             rounds=ROUNDS,
-            min_num_clients=50,
-            sample_fraction=SAMPLE_FRACTION,
-            min_sample_size=10,
+            min_num_clients=40,
+            sample_fraction=0.1,
+            min_sample_size=5,
             training_round_timeout=None,
             lr_initial=LR_INITIAL,
             partial_updates=False,
@@ -168,9 +168,9 @@ SETTINGS = {
             instance_name="server",
             strategy="fedavg",
             rounds=ROUNDS,
-            min_num_clients=100,
-            sample_fraction=SAMPLE_FRACTION,
-            min_sample_size=20,
+            min_num_clients=80,
+            sample_fraction=0.1,
+            min_sample_size=10,
             training_round_timeout=None,
             lr_initial=LR_INITIAL,
             partial_updates=False,
@@ -191,9 +191,9 @@ SETTINGS = {
             instance_name="server",
             strategy="fedavg",
             rounds=ROUNDS,
-            min_num_clients=500,
-            sample_fraction=SAMPLE_FRACTION,
-            min_sample_size=100,
+            min_num_clients=400,
+            sample_fraction=0.1,
+            min_sample_size=50,
             training_round_timeout=None,
             lr_initial=LR_INITIAL,
             partial_updates=False,
@@ -214,9 +214,9 @@ SETTINGS = {
             instance_name="server",
             strategy="fedavg",
             rounds=ROUNDS,
-            min_num_clients=1000,
-            sample_fraction=SAMPLE_FRACTION,
-            min_sample_size=200,
+            min_num_clients=800,
+            sample_fraction=0.1,
+            min_sample_size=100,
             training_round_timeout=None,
             lr_initial=LR_INITIAL,
             partial_updates=False,
@@ -227,6 +227,29 @@ SETTINGS = {
         clients=configure_uniform_clients(
             instance_names=client_names_1000,
             num_clients=1000,
+            dry_run=False,
+        ),
+    ),
+    "scale-10000": Baseline(
+        instances=[Instance(name="server", group="server", num_cpu=4, num_ram=16)]
+        + client_instances_1000,
+        server=ServerSetting(
+            instance_name="server",
+            strategy="fedavg",
+            rounds=ROUNDS,
+            min_num_clients=8000,
+            sample_fraction=0.1,
+            min_sample_size=1000,
+            training_round_timeout=None,
+            lr_initial=LR_INITIAL,
+            partial_updates=False,
+            importance_sampling=False,
+            dynamic_timeout=False,
+            dry_run=False,
+        ),
+        clients=configure_uniform_clients(
+            instance_names=client_names_1000,
+            num_clients=10000,
             dry_run=False,
         ),
     ),
