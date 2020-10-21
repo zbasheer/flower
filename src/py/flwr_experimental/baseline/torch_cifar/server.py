@@ -29,9 +29,7 @@ from flwr_experimental.baseline.torch_cifar.settings import SETTINGS, get_settin
 
 from . import DEFAULT_SERVER_ADDRESS, cifar
 
-# pylint: disable=no-member
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-# pylint: enable=no-member
 
 
 def parse_args() -> argparse.Namespace:
@@ -107,7 +105,7 @@ def main() -> None:
 
 
 def get_eval_fn(
-    model: torch.nn.ModuleList, testset: torchvision.datasets.CIFAR10
+    model: torch.nn.modules.Module, testset: torchvision.datasets.CIFAR10
 ) -> Callable[[fl.common.Weights], Optional[Tuple[float, float]]]:
     """Return an evaluation function for centralized evaluation."""
 
@@ -144,7 +142,6 @@ def get_on_fit_config_fn(lr_initial: float) -> Callable[[int], Dict[str, str]]:
 
 
 if __name__ == "__main__":
-    # pylint: disable=broad-except
     try:
         main()
     except Exception as err:

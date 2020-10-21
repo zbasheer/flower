@@ -79,9 +79,7 @@ if __name__ == "__main__":
         nb_clients=args.nb_clients,
     )
 
-    # pylint: disable=no-member
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    # pylint: enable=no-member
 
     # Instantiate client
     client = mnist.PytorchMNISTClient(

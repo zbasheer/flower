@@ -24,13 +24,13 @@ https://pytorch.org/tutorials/beginner/blitz/cifar10_tutorial.html
 from collections import OrderedDict
 from logging import DEBUG
 from os import path
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple, Union
 
 import numpy as np
 import torch
-import torch.nn as nn
 import torchvision
 import torchvision.transforms as transforms
+from torch import nn
 
 import flwr as fl
 from flwr.common.logger import log
@@ -38,21 +38,21 @@ from flwr_experimental.baseline.dataset.pytorch_cifar_partitioned import (
     CIFAR10PartitionedDataset,
 )
 
-
 DATA_ROOT = "~/.flower/data/cifar-10"
 
 
-def load_model(device) -> torch.nn.ModuleList:
+def load_model(device: Optional[Union[int, torch.types.Device]]) -> nn.modules.Module:
     """Load model (ResNet-18)."""
-    return torchvision.models.resnet18(num_classes=10).to(device)
+    model: nn.modules.Module = torchvision.models.resnet18(num_classes=10).to(device)
+    return model
 
 
-def get_weights(model: torch.nn.ModuleList) -> fl.common.Weights:
+def get_weights(model: torch.nn.modules.Module) -> fl.common.Weights:
     """Get model weights as a list of NumPy ndarrays."""
     return [val.cpu().numpy() for _, val in model.state_dict().items()]
 
 
-def set_weights(model: torch.nn.ModuleList, weights: fl.common.Weights) -> None:
+def set_weights(model: torch.nn.modules.Module, weights: fl.common.Weights) -> None:
     """Set model weights from a list of NumPy ndarrays."""
     state_dict = OrderedDict(
         {
@@ -63,10 +63,12 @@ def set_weights(model: torch.nn.ModuleList, weights: fl.common.Weights) -> None:
     model.load_state_dict(state_dict, strict=True)
 
 
-# pylint: disable=unused-argument
 def load_data(
     cid: int, root_dir: str = DATA_ROOT, load_testset: bool = False
-) -> Tuple[torch.utils.data.Dataset, torch.utils.data.Dataset]:
+) -> Tuple[
+    torchvision.datasets.vision.VisionDataset,
+    Optional[torchvision.datasets.vision.VisionDataset],
+]:
     """Load CIFAR-10 (training and test set)."""
     root_dir = path.expanduser(root_dir)
     transform = transforms.Compose(
@@ -76,7 +78,6 @@ def load_data(
         ]
     )
 
-    # Load EC-10 partition
     trainset = CIFAR10PartitionedDataset(
         partition_id=cid, root_dir=root_dir, transform=transform
     )
@@ -92,16 +93,16 @@ def load_data(
 
 def train(
     cid: str,
-    model: torch.nn.ModuleList,
-    trainloader: torch.utils.data.DataLoader,
+    model: torch.nn.modules.Module,
+    trainloader: torch.utils.data.DataLoader[Tuple[torch.Tensor, torch.Tensor]],
     epoch_global: int,
     epochs: int,
-    device: torch.device,  # pylint: disable=no-member
+    device: torch.types.Device,  # pylint: disable=no-member
     batches_per_episode: Optional[int] = None,
 ) -> None:
     """Train the network."""
     # Define loss and optimizer
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.modules.loss.CrossEntropyLoss()
     # optimizer = torch.optim.Adam(model.parameters())
     optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.95)
@@ -144,13 +145,13 @@ def train(
 
 
 def test(
-    model: torch.nn.ModuleList,
-    testloader: torch.utils.data.DataLoader,
-    device: torch.device,  # pylint: disable=no-member
+    model: torch.nn.modules.Module,
+    testloader: torch.utils.data.DataLoader[Tuple[torch.Tensor, torch.Tensor]],
+    device: torch.types.Device,
 ) -> Tuple[float, float]:
     """Validate the network on the entire test set."""
     model.eval()
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.modules.loss.CrossEntropyLoss()
     correct = 0
     total = 0
     loss = 0.0
@@ -159,7 +160,7 @@ def test(
             images, labels = data[0].to(device), data[1].to(device)
             outputs = model(images)
             loss += criterion(outputs, labels).item()
-            _, predicted = torch.max(outputs.data, 1)  # pylint: disable=no-member
+            _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
     accuracy = correct / total

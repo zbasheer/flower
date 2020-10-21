@@ -18,8 +18,9 @@
 import argparse
 import timeit
 from logging import ERROR, INFO
-from typing import Optional
+from typing import Optional, Tuple
 
+import numpy as np
 import torch
 import torchvision
 from torchvision import transforms
@@ -32,9 +33,9 @@ from flwr_experimental.baseline.torch_cifar.settings import SETTINGS, get_settin
 
 from . import DEFAULT_SERVER_ADDRESS, cifar
 
-# pylint: disable=no-member
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-# pylint: enable=no-member
+DEVICE: torch.types.Device = torch.device(
+    "cuda" if torch.cuda.is_available() else "cpu"
+)
 
 
 class CifarClient(fl.client.Client):
@@ -43,8 +44,8 @@ class CifarClient(fl.client.Client):
     def __init__(
         self,
         cid: str,
-        trainset: torch.utils.data.Dataset,
-        testset: Optional[torch.utils.data.Dataset] = None,
+        trainset: torchvision.datasets.vision.VisionDataset,
+        testset: Optional[torchvision.datasets.vision.VisionDataset] = None,
     ) -> None:
         self.cid = cid
         self.trainset = trainset
@@ -187,7 +188,6 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    # pylint: disable=broad-except
     try:
         main()
     except Exception as err:
