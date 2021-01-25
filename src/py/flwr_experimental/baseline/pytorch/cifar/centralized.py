@@ -16,6 +16,7 @@
 from typing import Dict, Tuple, Type
 
 import torch
+import torchvision
 from torch import LongTensor, Tensor, device, nn
 from torch.utils.data.dataloader import DataLoader
 from torch.utils.tensorboard import SummaryWriter
@@ -46,9 +47,8 @@ def train(
 
     # Train the network
     for epoch in range(num_epochs):  # loop over the dataset multiple times
-        print(f"Training epoch {epoch} out of {num_epochs}")
-        running_loss = 0.0
-        for i, data in enumerate(tqdm(dataloader)):
+        total, running_loss = 0, 0.0
+        for idx, data in enumerate(dataloader):
             images, labels = data[0].to(device), data[1].to(device)
 
             # zero the parameter gradients
@@ -62,9 +62,10 @@ def train(
 
             # print statistics
             running_loss += loss.item()
-            if i % 2000 == 1999:  # print every 2000 mini-batches
-                print("[%d, %5d] loss: %.3f" % (epoch + 1, i + 1, running_loss / 2000))
-                running_loss = 0.0
+            total +=labels.size(0)
+        running_loss /= total
+        print(f"Train|Loss:{loss}|")
+        running_loss = 0.0
 
 
 def test(
@@ -80,7 +81,7 @@ def test(
     correct, total, loss = 0, 0, 0.0
     print("Evaluating...")
     with torch.no_grad():
-        for data in tqdm(dataloader):
+        for data in dataloader:
             images, labels = data[0].to(device), data[1].to(device)
             outputs = net(images)
             loss += criterion(outputs, labels).item()
@@ -90,47 +91,51 @@ def test(
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
     accuracy = correct / total
-    print(f"Loss: {loss}  Accuracy: {accuracy}")
+    print(f"Test|Loss:{loss}|Accuracy:{accuracy}|")
     return loss, accuracy
 
+train_transforms = torchvision.transforms.Compose(
+        [
+            torchvision.transforms.RandomCrop((24, 24)),
+            torchvision.transforms.RandomHorizontalFlip(),
+            get_normalization_transform(),
+        ]
+    )
+test_transforms = torchvision.transforms.Compose(
+        [
+            torchvision.transforms.RandomCrop((24, 24)),
+            get_normalization_transform(),
+        ]
+    )
 
 if __name__ == "__main__":
 
     net = load_model(num_classes=10)
-    # net = resnet18(norm_layer=lambda x: nn.GroupNorm(2, x))
-    trainset = CIFAR_PartitionedDataset(
-        num_classes=10,
-        root_dir="~/.flower/data/cifar10/partitions/lda/0.10/train",
-        partition_id=0,
-        transform=get_normalization_transform(),
-    )
-    """trainset = CIFAR10(
+    print(net)
+
+    trainset = CIFAR10(
         root=DATA_ROOT,
         download=True,
         train=True,
-        transform=get_normalization_transform(),
-    )"""
+        transform=train_transforms,
+    )
     trainloader = torch.utils.data.DataLoader(
-        trainset, batch_size=32, shuffle=True, num_workers=2
+        trainset, batch_size=20, shuffle=True, num_workers=2
     )
 
     testset = CIFAR10(
         root=DATA_ROOT,
         download=True,
         train=False,
-        transform=get_normalization_transform(),
+        transform=test_transforms,
     )
     testloader = torch.utils.data.DataLoader(
         testset, batch_size=32, shuffle=True, num_workers=2
     )
 
-    writer = SummaryWriter("centralized")
     device = torch.device("cuda:0")
     loss, accuracy = test(net=net, dataloader=testloader, device=device)
     print(f"Initial Loss: {loss:.2f} | Initial accuracy: {accuracy:.2f}")
-    for epoch, _ in enumerate(tqdm(range(30))):
+    for epoch, _ in enumerate(range(30)):
         train(net=net, dataloader=trainloader, num_epochs=1, device=device)
         loss, accuracy = test(net=net, dataloader=testloader, device=device)
-        writer.add_scalar("Loss/test", loss, epoch)
-        writer.add_scalar("Accuracy/train", accuracy, epoch)
-        print(f"Accuracy {accuracy} after {epoch} epochs. Loss: {loss:.2f}")

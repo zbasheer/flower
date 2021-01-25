@@ -27,7 +27,6 @@ from typing import Any, Union
 
 import torch.nn.functional as F
 from torch import Tensor, nn
-from torch.nn import Module
 from torch.nn.modules.normalization import GroupNorm
 from torch.utils.data import Dataset
 from torchvision.models import resnet18
@@ -35,12 +34,13 @@ from torchvision.models import resnet18
 import flwr as fl
 
 
-class Net(Module):
+class Net(nn.Module):  # type: ignore
     """Simple Resnet18 using GroupNorm instead of BatchNorm."""
 
-    def __init__(self) -> None:
+    def __init__(self, num_classes:int) -> None:
         super(Net, self).__init__()
         self.model = resnet18(norm_layer=lambda x: GroupNorm(2, x))
+        self.model.fc =nn.Linear(512, num_classes) 
 
     def forward(self, x: Tensor) -> Tensor:
         """Compute forward pass."""
@@ -62,6 +62,5 @@ def load_model(
     num_classes: int = 10,
 ) -> Union[nn.Module, nn.ModuleList, nn.ModuleDict, Net]:
     """Returns a ResNet18 model with group normalization layers."""
-    resnet18gn = Net()
-    resnet18gn.fc = nn.Linear(512, num_classes)
+    resnet18gn = Net(num_classes=num_classes)
     return resnet18gn
