@@ -69,7 +69,7 @@ class CIFAR_PartitionedDataset(Dataset):
         num_classes: int = 10,
         root_dir: Union[str, bytes, PathLike],
         partition_id: int,
-        transform: Optional[callable]=None,
+        transform: Optional[callable] = None,
     ):
         """Dataset from partitioned files
         Parameters
@@ -89,15 +89,13 @@ class CIFAR_PartitionedDataset(Dataset):
             )
         self.root_dir: Path = Path(root_dir).expanduser()
         self.partition_id: int = partition_id
-        self.partition_path = (
-            self.root_dir / f"{self.partition_id}.pt"
-        )
+        self.partition_path = self.root_dir / f"{self.partition_id}.pt"
 
         if not self.partition_path.exists():
             raise RuntimeError(f"Partition file {self.partition_path} not found.")
         else:
             self.X, self.Y = load(self.partition_path)
-        
+
         self.transform = transform
 
     def __len__(self) -> int:
@@ -121,7 +119,7 @@ class CIFAR10PartitionedDataset(CIFAR_PartitionedDataset):
         *,
         root_dir: Union[str, bytes, PathLike],
         partition_id: int,
-        transform: Optional[callable]=None,
+        transform: Optional[callable] = None,
     ):
         """Dataset from partitioned files
         Parameters
@@ -131,7 +129,12 @@ class CIFAR10PartitionedDataset(CIFAR_PartitionedDataset):
         root_dir : Union[str, bytes, os.PathLike]
             Directory containing partioned files.
         """
-        super().__init__(num_classes=10, root_dir=root_dir, partition_id=partition_id, transform=transform)
+        super().__init__(
+            num_classes=10,
+            root_dir=root_dir,
+            partition_id=partition_id,
+            transform=transform,
+        )
 
 
 class CIFAR100PartitionedDataset(CIFAR_PartitionedDataset):
@@ -142,7 +145,7 @@ class CIFAR100PartitionedDataset(CIFAR_PartitionedDataset):
         *,
         root_dir: Union[str, bytes, PathLike],
         partition_id: int,
-        transform: Optional[callable]=None,
+        transform: Optional[callable] = None,
     ):
         """Dataset from partitioned files
         Parameters
@@ -152,4 +155,9 @@ class CIFAR100PartitionedDataset(CIFAR_PartitionedDataset):
         root_dir : Union[str, bytes, os.PathLike]
             Directory containing partioned files.
         """
-        super().__init__(num_classes=100, root_dir=root_dir, partition_id=partition_id, transform=transform)
+        super().__init__(
+            num_classes=100,
+            root_dir=root_dir,
+            partition_id=partition_id,
+            transform=transform,
+        )
