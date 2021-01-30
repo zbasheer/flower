@@ -25,6 +25,7 @@ from flwr.common import (
     EvaluateRes,
     FitIns,
     FitRes,
+    Scalar,
     Weights,
     parameters_to_weights,
     weights_to_parameters,
@@ -39,7 +40,7 @@ from .strategy import Strategy
 class FedAvg(Strategy):
     """Configurable FedAvg strategy implementation."""
 
-    # pylint: disable-msg=too-many-arguments,too-many-instance-attributes
+    # pylint: disable=too-many-arguments,too-many-instance-attributes
     def __init__(
         self,
         fraction_fit: float = 0.1,
@@ -48,10 +49,34 @@ class FedAvg(Strategy):
         min_eval_clients: int = 2,
         min_available_clients: int = 2,
         eval_fn: Optional[Callable[[Weights], Optional[Tuple[float, float]]]] = None,
-        on_fit_config_fn: Optional[Callable[[int], Dict[str, str]]] = None,
-        on_evaluate_config_fn: Optional[Callable[[int], Dict[str, str]]] = None,
+        on_fit_config_fn: Optional[Callable[[int], Dict[str, Scalar]]] = None,
+        on_evaluate_config_fn: Optional[Callable[[int], Dict[str, Scalar]]] = None,
         accept_failures: bool = True,
     ) -> None:
+        """Federated Averaging strategy.
+
+        Implementation based on https://arxiv.org/abs/1602.05629
+
+        Args:
+            fraction_fit (float, optional): Fraction of clients used during
+                training. Defaults to 0.1.
+            fraction_eval (float, optional): Fraction of clients used during
+                validation. Defaults to 0.1.
+            min_fit_clients (int, optional): Minimum number of clients used
+                during training. Defaults to 2.
+            min_eval_clients (int, optional): Minimum number of clients used
+                during validation. Defaults to 2.
+            min_available_clients (int, optional): Minimum number of total
+                clients in the system. Defaults to 2.
+            eval_fn (Callable[[Weights], Optional[Tuple[float, float]]], optional):
+                Function used for validation. Defaults to None.
+            on_fit_config_fn (Callable[[int], Dict[str, Scalar]], optional):
+                Function used to configure training. Defaults to None.
+            on_evaluate_config_fn (Callable[[int], Dict[str, Scalar]], optional):
+                Function used to configure validation. Defaults to None.
+            accept_failures (bool, optional): Whether or not accept rounds
+                containing failures. Defaults to True.
+        """
         super().__init__()
         self.min_fit_clients = min_fit_clients
         self.min_eval_clients = min_eval_clients

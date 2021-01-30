@@ -27,6 +27,7 @@ from flwr.common import (
     EvaluateRes,
     FitIns,
     FitRes,
+    Scalar,
     Weights,
     parameters_to_weights,
     weights_to_parameters,
@@ -41,7 +42,7 @@ from .fedavg import FedAvg
 class QffedAvg(FedAvg):
     """Configurable QffedAvg strategy implementation."""
 
-    # pylint: disable-msg=too-many-arguments,too-many-instance-attributes
+    # pylint: disable=too-many-arguments,too-many-instance-attributes
     def __init__(
         self,
         q_param: float = 0.2,
@@ -52,8 +53,8 @@ class QffedAvg(FedAvg):
         min_eval_clients: int = 1,
         min_available_clients: int = 1,
         eval_fn: Optional[Callable[[Weights], Optional[Tuple[float, float]]]] = None,
-        on_fit_config_fn: Optional[Callable[[int], Dict[str, str]]] = None,
-        on_evaluate_config_fn: Optional[Callable[[int], Dict[str, str]]] = None,
+        on_fit_config_fn: Optional[Callable[[int], Dict[str, Scalar]]] = None,
+        on_evaluate_config_fn: Optional[Callable[[int], Dict[str, Scalar]]] = None,
         accept_failures: bool = True,
     ) -> None:
         super().__init__()
@@ -71,7 +72,7 @@ class QffedAvg(FedAvg):
         self.pre_weights: Optional[Weights] = None
 
     def __repr__(self) -> str:
-        # pylint: disable-msg=line-too-long
+        # pylint: disable=line-too-long
         rep = f"QffedAvg(learning_rate={self.learning_rate}, "
         rep += f"q_param={self.q_param}, pre_weights={self.pre_weights})"
         return rep

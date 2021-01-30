@@ -23,16 +23,20 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from flwr.common import FitRes, Weights
+from flwr.common import FitRes, Scalar, Weights
 from flwr.server.client_proxy import ClientProxy
 
 from .fedopt import FedOpt
 
 
 class FedAdagrad(FedOpt):
-    """Configurable FedAdagrad strategy implementation."""
+    """Adaptive Federated Optimization using Adagrad (FedAdagrad) [Reddi et
+    al., 2020] strategy.
 
-    # pylint: disable-msg=too-many-arguments,too-many-instance-attributes
+    Paper: https://arxiv.org/abs/2003.00295
+    """
+
+    # pylint: disable=too-many-arguments,too-many-instance-attributes
     def __init__(
         self,
         *,
@@ -42,14 +46,43 @@ class FedAdagrad(FedOpt):
         min_eval_clients: int = 2,
         min_available_clients: int = 2,
         eval_fn: Optional[Callable[[Weights], Optional[Tuple[float, float]]]] = None,
-        on_fit_config_fn: Optional[Callable[[int], Dict[str, str]]] = None,
-        on_evaluate_config_fn: Optional[Callable[[int], Dict[str, str]]] = None,
+        on_fit_config_fn: Optional[Callable[[int], Dict[str, Scalar]]] = None,
+        on_evaluate_config_fn: Optional[Callable[[int], Dict[str, Scalar]]] = None,
         accept_failures: bool = True,
         current_weights: Weights,
         eta: float = 1e-1,
         eta_l: float = 1e-1,
         tau: float = 1e-9,
     ) -> None:
+        """Federated learning strategy using Adagrad on server-side.
+
+        Implementation based on https://arxiv.org/abs/2003.00295
+
+        Args:
+            fraction_fit (float, optional): Fraction of clients used during
+                training. Defaults to 0.1.
+            fraction_eval (float, optional): Fraction of clients used during
+                validation. Defaults to 0.1.
+            min_fit_clients (int, optional): Minimum number of clients used
+                during training. Defaults to 2.
+            min_eval_clients (int, optional): Minimum number of clients used
+                during validation. Defaults to 2.
+            min_available_clients (int, optional): Minimum number of total
+                clients in the system. Defaults to 2.
+            eval_fn (Callable[[Weights], Optional[Tuple[float, float]]], optional):
+                Function used for validation. Defaults to None.
+            on_fit_config_fn (Callable[[int], Dict[str, str]], optional):
+                Function used to configure training. Defaults to None.
+            on_evaluate_config_fn (Callable[[int], Dict[str, str]], optional):
+                Function used to configure validation. Defaults to None.
+            accept_failures (bool, optional): Whether or not accept rounds
+                containing failures. Defaults to True.
+            current_weights (Weights): Current set of weights from the server.
+            eta (float, optional): Server-side learning rate. Defaults to 1e-1.
+            eta_l (float, optional): Client-side learning rate. Defaults to 1e-1.
+            tau (float, optional): Controls the algorithm's degree of adaptability.
+                Defaults to 1e-9.
+        """
         super().__init__(
             fraction_fit=fraction_fit,
             fraction_eval=fraction_eval,
@@ -65,7 +98,7 @@ class FedAdagrad(FedOpt):
             eta_l=eta_l,
             tau=tau,
         )
-        self.v_t: Optional[np.ndarray] = None
+        self.v_t: Optional[Weights] = None
 
     def __repr__(self) -> str:
         rep = f"FedAdagrad(accept_failures={self.accept_failures})"
@@ -83,17 +116,27 @@ class FedAdagrad(FedOpt):
         )
         if fedavg_aggregate is None:
             return None
-        aggregated_updates = fedavg_aggregate[0] - self.current_weights[0]
+
+        aggregated_updates = [
+            subset_weights - self.current_weights[idx]
+            for idx, subset_weights in enumerate(fedavg_aggregate)
+        ]
 
         # Adagrad
         delta_t = aggregated_updates
         if not self.v_t:
-            self.v_t = np.zeros_like(delta_t)
-        self.v_t = self.v_t + np.multiply(delta_t, delta_t)
+            self.v_t = [np.zeros_like(subset_weights) for subset_weights in delta_t]
 
-        new_weights = [
-            self.current_weights[0]
-            + self.eta * delta_t / (np.sqrt(self.v_t) + self.tau)
+        self.v_t = [
+            self.v_t[idx] + np.multiply(subset_weights, subset_weights)
+            for idx, subset_weights in enumerate(delta_t)
         ]
 
-        return new_weights
+        new_weights = [
+            self.current_weights[idx]
+            + self.eta * delta_t[idx] / (np.sqrt(self.v_t[idx]) + self.tau)
+            for idx in range(len(delta_t))
+        ]
+        self.current_weights = new_weights
+
+        return self.current_weights

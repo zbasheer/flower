@@ -17,7 +17,7 @@
 
 from typing import Callable, Dict, List, Optional, Tuple
 
-from flwr.common import EvaluateRes, FitRes, Weights, parameters_to_weights
+from flwr.common import EvaluateRes, FitRes, Scalar, Weights, parameters_to_weights
 from flwr.server.client_proxy import ClientProxy
 
 from .aggregate import aggregate, weighted_loss_avg
@@ -27,7 +27,7 @@ from .fedavg import FedAvg
 class FaultTolerantFedAvg(FedAvg):
     """Configurable fault-tolerant FedAvg strategy implementation."""
 
-    # pylint: disable-msg=too-many-arguments,too-many-instance-attributes
+    # pylint: disable=too-many-arguments,too-many-instance-attributes
     def __init__(
         self,
         fraction_fit: float = 0.1,
@@ -36,8 +36,8 @@ class FaultTolerantFedAvg(FedAvg):
         min_eval_clients: int = 1,
         min_available_clients: int = 1,
         eval_fn: Optional[Callable[[Weights], Optional[Tuple[float, float]]]] = None,
-        on_fit_config_fn: Optional[Callable[[int], Dict[str, str]]] = None,
-        on_evaluate_config_fn: Optional[Callable[[int], Dict[str, str]]] = None,
+        on_fit_config_fn: Optional[Callable[[int], Dict[str, Scalar]]] = None,
+        on_evaluate_config_fn: Optional[Callable[[int], Dict[str, Scalar]]] = None,
         min_completion_rate_fit: float = 0.5,
         min_completion_rate_evaluate: float = 0.5,
     ) -> None:

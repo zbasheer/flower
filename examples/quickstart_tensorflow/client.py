@@ -1,11 +1,11 @@
 import os
 
+import flwr as fl
+import tensorflow as tf
+
 # Make TensorFlow log less verbose
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
-import tensorflow as tf
-
-import flwr as fl
 
 if __name__ == "__main__":
     # Load and compile Keras model
@@ -31,4 +31,4 @@ if __name__ == "__main__":
             return len(x_test), loss, accuracy
 
     # Start Flower client
-    fl.client.start_numpy_client("[::]:8080", client=CifarClient())
+    fl.client.start_numpy_client("0.0.0.0:8080", client=CifarClient())

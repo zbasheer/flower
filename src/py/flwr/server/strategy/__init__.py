@@ -29,6 +29,7 @@ __all__ = [
     "DefaultStrategy",
     "FastAndSlow",
     "FaultTolerantFedAvg",
+    "FedAdagrad",
     "FedAvg",
     "FedAdagrad",
     "FedFSv0",

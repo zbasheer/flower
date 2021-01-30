@@ -1,13 +1,12 @@
 from collections import OrderedDict
 
+import flwr as fl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 from torchvision.datasets import CIFAR10
-
-import flwr as fl
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -61,7 +60,7 @@ def main():
             return len(testloader), float(loss), float(accuracy)
 
     # Start client
-    fl.client.start_numpy_client("[::]:8080", client=CifarClient())
+    fl.client.start_numpy_client("0.0.0.0:8080", client=CifarClient())
 
 
 def train(net, trainloader, epochs):

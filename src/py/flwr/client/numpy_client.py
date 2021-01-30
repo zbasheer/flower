@@ -17,7 +17,7 @@
 
 import timeit
 from abc import ABC, abstractmethod
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple, Union, cast
 
 import numpy as np
 
@@ -26,7 +26,9 @@ from flwr.common import (
     EvaluateRes,
     FitIns,
     FitRes,
+    Metrics,
     ParametersRes,
+    Scalar,
     parameters_to_weights,
     weights_to_parameters,
 )
@@ -47,43 +49,51 @@ class NumPyClient(ABC):
 
     @abstractmethod
     def fit(
-        self, parameters: List[np.ndarray], config: Dict[str, str]
-    ) -> Tuple[List[np.ndarray], int]:
+        self, parameters: List[np.ndarray], config: Dict[str, Scalar]
+    ) -> Union[Tuple[List[np.ndarray], int], Tuple[List[np.ndarray], int, Metrics]]:
         """Train the provided parameters using the locally held dataset.
 
         Arguments:
             parameters: List[numpy.ndarray]. The current (global) model
                 parameters.
-            config: Dict[str, str]. Configuration parameters which allow the
+            config: Dict[str, Scalar]. Configuration parameters which allow the
                 server to influence training on the client. It can be used to
                 communicate arbitrary values from the server to the client, for
                 example, to set the number of (local) training epochs.
 
         Returns:
-            A tuple containing two elements: Updated parameters and an `int`
-            representing the number of examples used for training.
+            parameters: List[numpy.ndarray]. The locally updated model
+                parameters.
+            num_examples (int): The number of examples used for training.
+            metrics (Metrics, optional): A dictionary mapping arbitrary string
+                keys to values of type bool, bytes, float, int, or str. Metrics
+                can be used to communicate arbitrary values back to the server.
         """
 
     @abstractmethod
     def evaluate(
-        self, parameters: List[np.ndarray], config: Dict[str, str]
-    ) -> Tuple[int, float, float]:
+        self, parameters: List[np.ndarray], config: Dict[str, Scalar]
+    ) -> Union[Tuple[int, float, float], Tuple[int, float, float, Metrics]]:
         """Evaluate the provided weights using the locally held dataset.
 
-        Arguments:
-            parameters: List[numpy.ndarray]. The current (global) model
+        Args:
+            parameters (List[np.ndarray]): The current (global) model
                 parameters.
-            config: Dict[str, str]. Configuration parameters which allow the
+            config (Dict[str, Scalar]): Configuration parameters which allow the
                 server to influence evaluation on the client. It can be used to
                 communicate arbitrary values from the server to the client, for
                 example, to influence the number of examples used for
                 evaluation.
 
         Returns:
-            A tuple containing three elements: An `int` representing the number
-            of examples used for evaluation, a `float` representing the loss,
-            and a `float` representing the accuracy of the (global) model
-            weights on the local dataset.
+            num_examples (int): The number of examples used for evaluation.
+            loss (float): The evaluation loss of the model on the local
+                dataset.
+            accuracy (float, deprecated): The accuracy of the model on the
+                local test dataset.
+            metrics (Metrics, optional): A dictionary mapping arbitrary string
+                keys to values of type bool, bytes, float, int, or str. Metrics
+                can be used to communicate arbitrary values back to the server.
         """
 
 
@@ -106,22 +116,39 @@ class NumPyClientWrapper(Client):
 
         # Train
         fit_begin = timeit.default_timer()
-        parameters_prime, num_examples = self.numpy_client.fit(parameters, ins.config)
-        fit_duration = timeit.default_timer() - fit_begin
+        results = self.numpy_client.fit(parameters, ins.config)
+        if len(results) == 2:
+            results = cast(Tuple[List[np.ndarray], int], results)
+            parameters_prime, num_examples = results
+            metrics: Optional[Metrics] = None
+        elif len(results) == 3:
+            results = cast(Tuple[List[np.ndarray], int, Metrics], results)
+            parameters_prime, num_examples, metrics = results
 
         # Return FitRes
+        fit_duration = timeit.default_timer() - fit_begin
         parameters_prime_proto = weights_to_parameters(parameters_prime)
         return FitRes(
             parameters=parameters_prime_proto,
             num_examples=num_examples,
             num_examples_ceil=num_examples,  # num_examples == num_examples_ceil
             fit_duration=fit_duration,
+            metrics=metrics,
         )
 
     def evaluate(self, ins: EvaluateIns) -> EvaluateRes:
         """Evaluate the provided parameters using the locally held dataset."""
         parameters: List[np.ndarray] = parameters_to_weights(ins.parameters)
-        num_examples, loss, accuracy = self.numpy_client.evaluate(
-            parameters, ins.config
+
+        results = self.numpy_client.evaluate(parameters, ins.config)
+        # Note that accuracy is deprecated and will be removed in a future release
+        if len(results) == 3:
+            results = cast(Tuple[int, float, float], results)
+            num_examples, loss, accuracy = results
+            metrics: Optional[Metrics] = None
+        elif len(results) == 4:
+            results = cast(Tuple[int, float, float, Metrics], results)
+            num_examples, loss, accuracy, metrics = results
+        return EvaluateRes(
+            num_examples=num_examples, loss=loss, accuracy=accuracy, metrics=metrics
         )
-        return EvaluateRes(num_examples=num_examples, loss=loss, accuracy=accuracy)
