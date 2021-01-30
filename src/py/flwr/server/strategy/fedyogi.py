@@ -19,23 +19,13 @@ Paper: https://arxiv.org/abs/2003.00295
 """
 
 
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from flwr.common import (
-    EvaluateIns,
-    EvaluateRes,
-    FitIns,
-    FitRes,
-    Weights,
-    parameters_to_weights,
-    weights_to_parameters,
-)
-from flwr.server.client_manager import ClientManager
+from flwr.common import FitRes, Scalar, Weights
 from flwr.server.client_proxy import ClientProxy
 
-from .aggregate import aggregate, weighted_loss_avg
 from .fedopt import FedOpt
 
 
@@ -52,12 +42,12 @@ class FedYogi(FedOpt):
         min_eval_clients: int = 2,
         min_available_clients: int = 2,
         eval_fn: Optional[Callable[[Weights], Optional[Tuple[float, float]]]] = None,
-        on_fit_config_fn: Optional[Callable[[int], Dict[str, str]]] = None,
-        on_evaluate_config_fn: Optional[Callable[[int], Dict[str, str]]] = None,
+        on_fit_config_fn: Optional[Callable[[int], Dict[str, Scalar]]] = None,
+        on_evaluate_config_fn: Optional[Callable[[int], Dict[str, Scalar]]] = None,
         accept_failures: bool = True,
         current_weights: Weights,
         eta: float = 1e-1,
-        eta_l: float = 1e-1,
+        eta_l: float = 3e-2,
         tau: float = 1e-9,
         beta_1: float = 0.9,
         beta_2: float = 0.99,
@@ -79,8 +69,8 @@ class FedYogi(FedOpt):
         )
         self.beta_1 = beta_1
         self.beta_2 = beta_2
-        self.delta_t = np.zeros_like(self.current_weights)
-        self.v_t = np.zeros_like(self.current_weights)
+        self.delta_t: Optional[Weights] = None
+        self.v_t: Optional[Weights] = None
 
     def __repr__(self) -> str:
         rep = f"FedYogi(accept_failures={self.accept_failures})"
@@ -98,20 +88,34 @@ class FedYogi(FedOpt):
         )
         if fedavg_aggregate is None:
             return None
-        aggregated_updates = fedavg_aggregate[0] - self.current_weights[0]
 
-        # Yogi
-        self.delta_t = (
-            self.beta_1 * self.delta_t + (1.0 - self.beta_1) * aggregated_updates
-        )
-        delta_t_sq = np.multiply(self.delta_t, self.delta_t)
-        self.v_t = self.v_t - (1.0 - self.beta_2) * delta_t_sq * np.sign(
-            self.v_t - delta_t_sq
-        )
-
-        weights = [
-            self.current_weights[0]
-            + self.eta * self.delta_t / (np.sqrt(self.v_t) + self.tau)
+        aggregated_updates = [
+            x - y for x, y in zip(fedavg_aggregate, self.current_weights)
         ]
 
-        return weights
+        if not self.delta_t:
+            self.delta_t = [np.zeros_like(x) for x in self.current_weights]
+
+        # update_delta_t
+        self.delta_t = [
+            self.beta_1 * x + (1.0 - self.beta_1) * y
+            for x, y in zip(self.delta_t, aggregated_updates)
+        ]
+
+        if not self.v_t:
+            self.v_t = [np.zeros_like(x) for x in self.current_weights]
+
+        delta_t_sq = [np.multiply(x, x) for x in self.delta_t]
+
+        # FedYogi
+        self.v_t = [
+            x - (1.0 - self.beta_2) * y * np.sign(x - y)
+            for x, y in zip(self.v_t, delta_t_sq)
+        ]
+
+        self.current_weights = [
+            x + self.eta * y / (np.sqrt(z) + self.tau)
+            for x, y, z in zip(self.current_weights, self.delta_t, self.v_t)
+        ]
+
+        return self.current_weights
