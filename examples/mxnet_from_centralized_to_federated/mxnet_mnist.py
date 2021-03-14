@@ -55,7 +55,7 @@ def train(
         # Reset the train data iterator.
         train_data.reset()
         # Calculate number of samples
-        num_samples = 0
+        num_examples = 0
         # Loop over the train data iterator.
         for batch in train_data:
             # Splits train data into multiple slices along batch_axis
@@ -78,7 +78,7 @@ def train(
                     # Backpropogate the error for one iteration.
                     loss.backward()
                     outputs.append(z.softmax())
-                    num_samples += len(x)
+                    num_examples += len(x)
             # Updates internal evaluation
             metrics.update(label, outputs)
             # Make one step of parameter update. Trainer needs to know the
@@ -87,7 +87,7 @@ def train(
         # Gets the evaluation result.
         trainings_metric = metrics.get_name_value()
         print("Accuracy & loss at epoch %d: %s" % (i, trainings_metric))
-    return trainings_metric, num_samples
+    return trainings_metric, num_examples
 
 
 def test(
@@ -102,7 +102,7 @@ def test(
     # Reset the validation data iterator.
     val_data.reset()
     # Get number of samples for val_dat
-    num_samples = 0
+    num_examples = 0
     # Loop over the validation data iterator.
     for batch in val_data:
         # Splits validation data into multiple slices along batch_axis
@@ -116,10 +116,10 @@ def test(
         outputs = []
         for x in data:
             outputs.append(net(x).softmax())
-            num_samples += len(x) 
+            num_examples += len(x) 
         # Updates internal evaluation
         metrics.update(label, outputs)
-    return metrics.get_name_value(), num_samples
+    return metrics.get_name_value(), num_examples
 
 
 def main():
