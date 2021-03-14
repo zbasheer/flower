@@ -78,7 +78,6 @@ def train(
                     # Backpropogate the error for one iteration.
                     loss.backward()
                     outputs.append(z.softmax())
-                    #print("label len",len(data))
                     num_samples += len(x)
             # Updates internal evaluation
             metrics.update(label, outputs)
