@@ -46,6 +46,7 @@ def insecure_grpc_connection(
         options=[
             ("grpc.max_send_message_length", max_message_length),
             ("grpc.max_receive_message_length", max_message_length),
+            ('grpc.enable_http_proxy', 0)
         ],
     )
     channel.subscribe(on_channel_state_change)
